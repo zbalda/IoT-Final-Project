@@ -1,3 +1,6 @@
+# BlueJ Java IDE
+*.ctxt
+
 # Compiled class file
 *.class
 
