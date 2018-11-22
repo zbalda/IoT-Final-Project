@@ -1,4 +1,4 @@
-# IoT Project 2
+# IoT Final Project
 CSCI 43300
 
 Introduction to Internet of Things
