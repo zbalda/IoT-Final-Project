@@ -1,15 +1,15 @@
 /*******************************************************************************
  * Copyright (c) 2015 Institute for Pervasive Computing, ETH Zurich and others.
- * 
+ *
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * and Eclipse Distribution License v1.0 which accompany this distribution.
- * 
+ *
  * The Eclipse Public License is available at
  *    http://www.eclipse.org/legal/epl-v10.html
  * and the Eclipse Distribution License is available at
  *    http://www.eclipse.org/org/documents/edl-v10.html.
- * 
+ *
  * Contributors:
  *    Matthias Kovatsch - creator and main architect
  *    Kai Hudalla (Bosch Software Innovations GmbH) - add endpoints for all IP addresses
@@ -36,7 +36,7 @@ import com.pi4j.temperature.TemperatureScale;
 
 
 public class HelloWorldServer extends CoapServer {
-	
+
 	// GPIO variables
 	public static GpioController gpio;
 
@@ -49,7 +49,7 @@ public class HelloWorldServer extends CoapServer {
      * Application entry point.
      */
     public static void main(String[] args) {
-        
+
         try {
 
             // create server
@@ -81,71 +81,122 @@ public class HelloWorldServer extends CoapServer {
      * of the server are initialized.
      */
     public HelloWorldServer() throws SocketException {
-		
+
 		// create gpio controller
 		gpio = GpioFactory.getInstance();
 
 		// for getting sensor device
 		w1Master = new W1Master();
-		
+
 		// provision temperature sensor
 		for(TemperatureSensor device : w1Master.getDevices(TemperatureSensor.class)){
 			if(device.getName().contains("28-0000075565ad")){
 				tempSensor = device;
 			}
 		}
-        
+
         // provide an instance of a Temperature resource
         add(new TemperatureResource());
-        
-        // provide an instance of a Second resource
-        add(new SecondResource());
+
+        // provide an instance of a Climate Control resource
+        add(new ClimateControlResource());
+
+				// provide an instance of a Heater resource
+        add(new HeaterResource());
+
+				// provide an instance of a Fan resource
+        add(new FanResource());
     }
 
     /*
      * Definition of the Temperature Resource
      */
     class TemperatureResource extends CoapResource {
-        
+
         public TemperatureResource() {
-            
+
             // set resource identifier
             super("temperature");
-            
+
             // set display name
             getAttributes().setTitle("Temperature Resource");
         }
 
         @Override
         public void handleGET(CoapExchange exchange) {
-			
-			double temp = tempSensor.getTemperature(TemperatureScale.CELSIUS);
-			String tempstr = String.valueOf(temp);
-			
+
+						// get temperature
+						double temp = tempSensor.getTemperature(TemperatureScale.CELSIUS);
+						String tempstr = String.valueOf(temp);
+
             // respond to the request
             exchange.respond(tempstr);
         }
     }
-    
-    /*
-     * Definition of the Second Resource
+
+		/*
+     * Definition of the Climate Control Resource
      */
-    class SecondResource extends CoapResource {
-        
-        public SecondResource() {
-            
+    class ClimateControlResource extends CoapResource {
+
+        public ClimateControlResource() {
+
             // set resource identifier
-            super("second");
-            
+            super("climate-control");
+
             // set display name
-            getAttributes().setTitle("Second Resource");
+            getAttributes().setTitle("Climate Control Resource");
         }
 
         @Override
         public void handleGET(CoapExchange exchange) {
-            
+
             // respond to the request
-            exchange.respond("Second!");
+            exchange.respond("Climate Control!");
+        }
+    }
+
+		/*
+     * Definition of the Heater Resource
+     */
+    class HeaterResource extends CoapResource {
+
+        public HeaterResource() {
+
+            // set resource identifier
+            super("heater");
+
+            // set display name
+            getAttributes().setTitle("Heater Resource");
+        }
+
+        @Override
+        public void handleGET(CoapExchange exchange) {
+
+            // respond to the request
+            exchange.respond("Heater!");
+        }
+    }
+
+    /*
+     * Definition of the Fan Resource
+     */
+    class FanResouce extends CoapResource {
+
+        public FanResource() {
+
+            // set resource identifier
+            super("fan");
+
+            // set display name
+            getAttributes().setTitle("Fan Resource");
+        }
+
+        @Override
+        public void handleGET(CoapExchange exchange) {
+
+            // respond to the request
+            exchange.respond("Fan!");
         }
     }
 }
