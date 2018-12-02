@@ -60,6 +60,17 @@ public class HelloWorldServer extends CoapServer {
 
             // create server
             HelloWorldServer server = new HelloWorldServer();
+
+						// new thread for ClimateDevices
+						Thread ClimateDevicesThread = new Thread() {
+							@Override
+							public void run(){
+								ClimateDevices();
+							}
+						};
+						ClimateDevicesThread.start();
+						System.out.println("ClimateDevicesThread Started.");
+
             // add endpoints on all IP addresses
             server.addEndpoints();
             server.start();
@@ -83,22 +94,32 @@ public class HelloWorldServer extends CoapServer {
 			}
     }
 
-		public void updateClimateDevices() {
-			double temp = tempSensor.getTemperature(TemperatureScale.CELSIUS);
-			if(climateControlOn) {
-				if(temp < goalTemp) {
-					// TODO: turn heater on
-					// TODO: turn fan off
-				} else if (temp > goalTemp) {
-					// TODO: turn heater off
-					// TODO: turn fan on
+		public void ClimateDevices() {
+			while (true) {
+				// update devices
+				double temp = tempSensor.getTemperature(TemperatureScale.CELSIUS);
+				if(climateControlOn) {
+					if(temp < goalTemp) {
+						// TODO: turn heater on
+						// TODO: turn fan off
+					} else if (temp > goalTemp) {
+						// TODO: turn heater off
+						// TODO: turn fan on
+					} else {
+						// TODO: turn heater off
+						// TODO: turn fan off
+					}
 				} else {
 					// TODO: turn heater off
 					// TODO: turn fan off
 				}
-			} else {
-				// TODO: turn heater off
-				// TODO: turn fan off
+
+				// sleep
+				try {
+					Thread.sleep(1000);
+				} catch (InterruptedException ex) {
+					System.out.println("Tried to sleep ClimateDevices() but couldn't.");
+				}
 			}
 		}
 
