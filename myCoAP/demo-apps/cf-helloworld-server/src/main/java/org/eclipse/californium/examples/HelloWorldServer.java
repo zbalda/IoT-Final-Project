@@ -44,6 +44,12 @@ public class HelloWorldServer extends CoapServer {
 	public static W1Master w1Master;
 	public static TemperatureSensor tempSensor;
 
+	// state variables
+	public static double goalTemp;
+	public static boolean climateControlOn;
+	public static boolean heaterOn;
+	public static boolean fanOn;
+
 	private static final int COAP_PORT = NetworkConfig.getStandard().getInt(NetworkConfig.Keys.COAP_PORT);
     /*
      * Application entry point.
@@ -61,6 +67,7 @@ public class HelloWorldServer extends CoapServer {
         } catch (SocketException e) {
             System.err.println("Failed to initialize server: " + e.getMessage());
         }
+				// TODO: create thread and call updateClimateDevices() every second
     }
 
     /**
@@ -68,13 +75,32 @@ public class HelloWorldServer extends CoapServer {
      */
     private void addEndpoints() {
     	for (InetAddress addr : EndpointManager.getEndpointManager().getNetworkInterfaces()) {
-    		// only binds to IPv4 addresses and localhost
-			if (addr instanceof Inet4Address || addr.isLoopbackAddress()) {
-				InetSocketAddress bindToAddress = new InetSocketAddress(addr, COAP_PORT);
-				addEndpoint(new CoapEndpoint(bindToAddress));
+	    		// only binds to IPv4 addresses and localhost
+				if (addr instanceof Inet4Address || addr.isLoopbackAddress()) {
+					InetSocketAddress bindToAddress = new InetSocketAddress(addr, COAP_PORT);
+					addEndpoint(new CoapEndpoint(bindToAddress));
+				}
+			}
+    }
+
+		public void updateClimateDevices() {
+			double temp = tempSensor.getTemperature(TemperatureScale.CELSIUS);
+			if(climateControlOn) {
+				if(temp < goalTemp) {
+					// TODO: turn heater on
+					// TODO: turn fan off
+				} else if (temp > goalTemp) {
+					// TODO: turn heater off
+					// TODO: turn fan on
+				} else {
+					// TODO: turn heater off
+					// TODO: turn fan off
+				}
+			} else {
+				// TODO: turn heater off
+				// TODO: turn fan off
 			}
 		}
-    }
 
     /*
      * Constructor for a new Hello-World server. Here, the resources
@@ -82,30 +108,39 @@ public class HelloWorldServer extends CoapServer {
      */
     public HelloWorldServer() throws SocketException {
 
-		// create gpio controller
-		gpio = GpioFactory.getInstance();
+			// initialize state variables
+			goalTemp = 20;
+			climateControlOn = false;
+			heaterOn = false;
+			fanOn = false;
 
-		// for getting sensor device
-		w1Master = new W1Master();
+			// create gpio controller
+			gpio = GpioFactory.getInstance();
 
-		// provision temperature sensor
-		for(TemperatureSensor device : w1Master.getDevices(TemperatureSensor.class)){
-			if(device.getName().contains("28-0000075565ad")){
-				tempSensor = device;
+			// TODO: provision output pin for heater
+			// TODO: provision output pin for fan
+
+			// for getting sensor device
+			w1Master = new W1Master();
+
+			// provision temperature sensor
+			for(TemperatureSensor device : w1Master.getDevices(TemperatureSensor.class)){
+				if(device.getName().contains("28-0000075565ad")){
+					tempSensor = device;
+				}
 			}
-		}
 
-        // provide an instance of a Temperature resource
-        add(new TemperatureResource());
+      // provide an instance of a Temperature resource
+      add(new TemperatureResource());
 
-        // provide an instance of a Climate Control resource
-        add(new ClimateControlResource());
+      // provide an instance of a Climate Control resource
+      add(new ClimateControlResource());
 
-				// provide an instance of a Heater resource
-        add(new HeaterResource());
+			// provide an instance of a Heater resource
+      add(new HeaterResource());
 
-				// provide an instance of a Fan resource
-        add(new FanResource());
+			// provide an instance of a Fan resource
+      add(new FanResource());
     }
 
     /*
@@ -132,6 +167,13 @@ public class HelloWorldServer extends CoapServer {
             // respond to the request
             exchange.respond(tempstr);
         }
+
+				// POST
+				//   if payload is number
+				//     set the goalTemp
+				//     call updateClimateDevices()
+				//   else
+				//     respond with 400 error
     }
 
 		/*
@@ -151,9 +193,22 @@ public class HelloWorldServer extends CoapServer {
         @Override
         public void handleGET(CoapExchange exchange) {
 
-            // respond to the request
-            exchange.respond("Climate Control!");
+					// respond to the request
+					if(climateControlOn)
+					{
+						exchange.respond("on");
+					} else {
+						exchange.respond("off");
+					}
         }
+
+				// POST
+				//   if payload is "on"
+				//     set climateControlOn to 'true'
+				//   else if payload is "off"
+				//     set climateControlOn to 'false'
+				//   else
+				//     respond with 400 error
     }
 
 		/*
@@ -174,7 +229,12 @@ public class HelloWorldServer extends CoapServer {
         public void handleGET(CoapExchange exchange) {
 
             // respond to the request
-            exchange.respond("Heater!");
+						if(heaterOn)
+						{
+							exchange.respond("on");
+						} else {
+							exchange.respond("off");
+						}
         }
     }
 
@@ -196,7 +256,12 @@ public class HelloWorldServer extends CoapServer {
         public void handleGET(CoapExchange exchange) {
 
             // respond to the request
-            exchange.respond("Fan!");
+						if(fanOn)
+						{
+							exchange.respond("on");
+						} else {
+							exchange.respond("off");
+						}
         }
     }
 }
