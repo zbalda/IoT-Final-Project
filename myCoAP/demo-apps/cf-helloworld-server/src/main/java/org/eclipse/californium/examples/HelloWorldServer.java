@@ -107,24 +107,36 @@ public class HelloWorldServer extends CoapServer {
 					if(temp < goalTemp-.5) {
 						// turn heater on
             heaterPin.high();
+            heaterOn = true;
 						// turn fan off
             fanPin.low();
+            fanOn = false;
+            System.out.println("Heater ON  Fan OFF");
 					} else if (temp > goalTemp+.5) {
 						// turn heater off
             heaterPin.low();
+            heaterOn = false;
 						// turn fan on
             fanPin.high();
+            fanOn = true;
+            System.out.println("Heater OFF Fan  ON");
 					} else {
 						// turn heater off
             heaterPin.low();
+            heaterOn = false;
 						// turn fan off
             fanPin.low();
+            fanOn = false;
+            System.out.println("Heater OFF Fan OFF");
 					}
 				} else {
 					// turn heater off
           heaterPin.low();
+          heaterOn = false;
 					// turn fan off
           fanPin.low();
+          fanOn = false;
+          System.out.println("Control System OFF");
 				}
 
 				// sleep
@@ -143,7 +155,7 @@ public class HelloWorldServer extends CoapServer {
     public HelloWorldServer() throws SocketException {
 
 			// initialize state variables
-			goalTemp = 20;
+			goalTemp = 20.0;
 			climateControlOn = false;
 			heaterOn = false;
 			fanOn = false;
@@ -152,12 +164,12 @@ public class HelloWorldServer extends CoapServer {
 			gpio = GpioFactory.getInstance();
 
 			// provision output pin for heater
-      heaterPin = gpio.provisionDigitalOutputPin(RaspiPin.GPIO_25, "heater", PinState.LOW);
-      heaterPin.setShutdownOptions(true, PinState.LOW, PinPullResistance.OFF);
+      fanPin = gpio.provisionDigitalOutputPin(RaspiPin.GPIO_25, "fan", PinState.LOW);
+      fanPin.setShutdownOptions(true, PinState.LOW, PinPullResistance.OFF);
       
 			// provision output pin for fan
-      fanPin = gpio.provisionDigitalOutputPin(RaspiPin.GPIO_27, "fan", PinState.LOW);
-      fanPin.setShutdownOptions(true, PinState.LOW, PinPullResistance.OFF);
+      heaterPin = gpio.provisionDigitalOutputPin(RaspiPin.GPIO_27, "heater", PinState.LOW);
+      heaterPin.setShutdownOptions(true, PinState.LOW, PinPullResistance.OFF);
 
 			// for getting sensor device
 			w1Master = new W1Master();
@@ -180,6 +192,9 @@ public class HelloWorldServer extends CoapServer {
 
       // provide an instance of a Fan resource
       add(new FanResource());
+      
+      // provide resource for CoAP client
+      add(new ReceiverResource());
     }
 
     /*
@@ -211,10 +226,11 @@ public class HelloWorldServer extends CoapServer {
         public void handlePOST(CoapExchange exchange) {
           try {
             String payloadStr = new String(exchange.getRequestPayload());
-            System.out.println("Request Payload (Text): " + payloadStr);
+            System.out.println("Request Payload for Temp(Text): " + payloadStr);
             int newTempTarget = Integer.parseInt(payloadStr);
             // set new temperature target
             goalTemp = newTempTarget;
+            System.out.println("New goal temperature: " + goalTemp);
             exchange.accept();
             // couldn't cast to int
           } catch (NumberFormatException e) {
@@ -254,21 +270,23 @@ public class HelloWorldServer extends CoapServer {
         @Override
         public void handlePOST(CoapExchange exchange) {
           String payloadStr = new String(exchange.getRequestPayload());
-          System.out.println("Request Payload (Text): " + payloadStr);
-          if(payloadStr == "on") {
+          System.out.println("Request Payload for Climate Control(Text): " + payloadStr);
+          if(payloadStr.equals(new String("on"))) {
             climateControlOn = true;
+            System.out.println("Climate: " + climateControlOn);
             exchange.accept();
-          } else if(payloadStr == "off") {
+          } else if(payloadStr.equals(new String("off"))) {
             climateControlOn = false;
+            System.out.println("Climate: " + climateControlOn);
             exchange.accept();
           } else {
-            System.out.println("This is not a valid command: " + payloadStr);
-            exchange.reject();
+            System.out.println("This is not a valid command for Climate Control: " + payloadStr);
+            exchange.respond(payloadStr + "not accpted");
           }
         }
     }
 
-	/*
+    /*
      * Definition of the Heater Resource
      */
     class HeaterResource extends CoapResource {
@@ -319,6 +337,55 @@ public class HelloWorldServer extends CoapServer {
 						} else {
 							exchange.respond("off");
 						}
+        }
+    }
+
+    /*
+     * Definition of the Receiver Resource
+     */
+    class ReceiverResource extends CoapResource {
+      
+      public ReceiverResource() {
+
+            // set resource identifier
+            super("receiver");
+
+            // set display name
+            getAttributes().setTitle("Receiver Resource");
+        }
+        
+        @Override
+        public void handlePOST(CoapExchange exchange) {
+          // get payload
+          String payloadStr = new String(exchange.getRequestPayload());
+          String[] newInfo = payloadStr.split("\\s+");
+          
+          // set new values
+          climateControlOn = Boolean.parseBoolean(newInfo[0]);
+          goalTemp = Double.parseDouble(newInfo[1]);
+          System.out.println("Received: Climate Ctrl: "+climateControlOn+" Goal: "+goalTemp);
+          
+          // set up JSON object
+          String heaterStatus;
+          if(heaterOn) {
+            heaterStatus = "on";
+          } else {
+            heaterStatus = "off";
+          }
+          
+          String fanStatus;
+          if(fanOn) {
+            fanStatus = "on";
+          } else {
+            fanStatus = "off";
+          }
+          
+          double temp = tempSensor.getTemperature(TemperatureScale.CELSIUS);
+          String tempstr = String.valueOf(temp);
+          
+          String responce = "{\"heaterStatus\":\"" + heaterStatus + "\", \"fanStatus\":\"" + fanStatus + "\", \"temperature\":\"" + tempstr + "\"}";
+          System.out.println(responce);
+          exchange.respond(responce);
         }
     }
 }
