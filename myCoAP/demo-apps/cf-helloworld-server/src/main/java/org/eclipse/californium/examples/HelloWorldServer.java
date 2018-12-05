@@ -28,12 +28,16 @@ import org.eclipse.californium.core.network.EndpointManager;
 import org.eclipse.californium.core.network.config.NetworkConfig;
 import org.eclipse.californium.core.server.resources.CoapExchange;
 
-// temperature sensor
+// GPIO libraries
 import com.pi4j.io.gpio.*;
 import com.pi4j.component.temperature.TemperatureSensor;
 import com.pi4j.io.w1.W1Master;
 import com.pi4j.temperature.TemperatureScale;
-
+import com.pi4j.io.gpio.GpioController;
+import com.pi4j.io.gpio.GpioFactory;
+import com.pi4j.io.gpio.GpioPinDigitalOutput;
+import com.pi4j.io.gpio.PinState;
+import com.pi4j.io.gpio.RaspiPin;
 
 public class HelloWorldServer extends CoapServer {
 
@@ -43,6 +47,8 @@ public class HelloWorldServer extends CoapServer {
 	// Sensor variables
 	public static W1Master w1Master;
 	public static TemperatureSensor tempSensor;
+  public static GpioPinDigitalOutput heaterPin;
+  public static GpioPinDigitalOutput fanPin;
 
 	// state variables
 	public static double goalTemp;
@@ -78,7 +84,6 @@ public class HelloWorldServer extends CoapServer {
         } catch (SocketException e) {
             System.err.println("Failed to initialize server: " + e.getMessage());
         }
-				// TODO: create thread and call updateClimateDevices() every second
     }
 
     /**
@@ -94,24 +99,32 @@ public class HelloWorldServer extends CoapServer {
 			}
     }
 
-		public void ClimateDevices() {
+		static public void ClimateDevices() {
 			while (true) {
 				// update devices
 				double temp = tempSensor.getTemperature(TemperatureScale.CELSIUS);
 				if(climateControlOn) {
-					if(temp < goalTemp) {
-						// TODO: turn heater on
-						// TODO: turn fan off
-					} else if (temp > goalTemp) {
-						// TODO: turn heater off
-						// TODO: turn fan on
+					if(temp < goalTemp-.5) {
+						// turn heater on
+            heaterPin.high();
+						// turn fan off
+            fanPin.low();
+					} else if (temp > goalTemp+.5) {
+						// turn heater off
+            heaterPin.low();
+						// turn fan on
+            fanPin.high();
 					} else {
-						// TODO: turn heater off
-						// TODO: turn fan off
+						// turn heater off
+            heaterPin.low();
+						// turn fan off
+            fanPin.low();
 					}
 				} else {
-					// TODO: turn heater off
-					// TODO: turn fan off
+					// turn heater off
+          heaterPin.low();
+					// turn fan off
+          fanPin.low();
 				}
 
 				// sleep
@@ -138,8 +151,13 @@ public class HelloWorldServer extends CoapServer {
 			// create gpio controller
 			gpio = GpioFactory.getInstance();
 
-			// TODO: provision output pin for heater
-			// TODO: provision output pin for fan
+			// provision output pin for heater
+      heaterPin = gpio.provisionDigitalOutputPin(RaspiPin.GPIO_25, "heater", PinState.LOW);
+      heaterPin.setShutdownOptions(true, PinState.LOW, PinPullResistance.OFF);
+      
+			// provision output pin for fan
+      fanPin = gpio.provisionDigitalOutputPin(RaspiPin.GPIO_27, "fan", PinState.LOW);
+      fanPin.setShutdownOptions(true, PinState.LOW, PinPullResistance.OFF);
 
 			// for getting sensor device
 			w1Master = new W1Master();
@@ -157,10 +175,10 @@ public class HelloWorldServer extends CoapServer {
       // provide an instance of a Climate Control resource
       add(new ClimateControlResource());
 
-			// provide an instance of a Heater resource
+      // provide an instance of a Heater resource
       add(new HeaterResource());
 
-			// provide an instance of a Fan resource
+      // provide an instance of a Fan resource
       add(new FanResource());
     }
 
@@ -189,15 +207,25 @@ public class HelloWorldServer extends CoapServer {
             exchange.respond(tempstr);
         }
 
-				// POST
-				//   if payload is number
-				//     set the goalTemp
-				//     call updateClimateDevices()
-				//   else
-				//     respond with 400 error
+        @Override
+        public void handlePOST(CoapExchange exchange) {
+          try {
+            String payloadStr = new String(exchange.getRequestPayload());
+            System.out.println("Request Payload (Text): " + payloadStr);
+            int newTempTarget = Integer.parseInt(payloadStr);
+            // set new temperature target
+            goalTemp = newTempTarget;
+            exchange.accept();
+            // couldn't cast to int
+          } catch (NumberFormatException e) {
+            String payloadStr = new String(exchange.getRequestPayload());
+            System.out.println("Couldn't convert " + payloadStr + " to int.");
+            exchange.reject();
+          }
+        }
     }
 
-		/*
+    /*
      * Definition of the Climate Control Resource
      */
     class ClimateControlResource extends CoapResource {
@@ -223,16 +251,24 @@ public class HelloWorldServer extends CoapServer {
 					}
         }
 
-				// POST
-				//   if payload is "on"
-				//     set climateControlOn to 'true'
-				//   else if payload is "off"
-				//     set climateControlOn to 'false'
-				//   else
-				//     respond with 400 error
+        @Override
+        public void handlePOST(CoapExchange exchange) {
+          String payloadStr = new String(exchange.getRequestPayload());
+          System.out.println("Request Payload (Text): " + payloadStr);
+          if(payloadStr == "on") {
+            climateControlOn = true;
+            exchange.accept();
+          } else if(payloadStr == "off") {
+            climateControlOn = false;
+            exchange.accept();
+          } else {
+            System.out.println("This is not a valid command: " + payloadStr);
+            exchange.reject();
+          }
+        }
     }
 
-		/*
+	/*
      * Definition of the Heater Resource
      */
     class HeaterResource extends CoapResource {
@@ -262,7 +298,7 @@ public class HelloWorldServer extends CoapServer {
     /*
      * Definition of the Fan Resource
      */
-    class FanResouce extends CoapResource {
+    class FanResource extends CoapResource {
 
         public FanResource() {
 
